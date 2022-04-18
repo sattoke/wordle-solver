@@ -135,7 +135,7 @@ class Wordle:
         for w in self.words:
             regex += w.make_regex()
 
-        self._search_regex(regex)
+        return self._search_regex(regex)
 
     def print_candidates(self):
         print("\n[Solution candidates]")
@@ -143,36 +143,42 @@ class Wordle:
             word = Word(w)
             word.print()
 
-    def recommend(self):
+    def recommend(self, candidates):
         """Find words that contain as many unused letters as possible."""
-        histogram = self._make_histogram()
+        chars_dict = self._get_chars_dict()
 
-        unused_raw_words = self._get_unused_raw_chars()
+        scored_words = {}
 
-        sorted_unused_chars = [x[0] for x in histogram if x[0] in unused_raw_words]
+        for w in self.word_list:
+            scored_words[w] = 0
+            histo_in_w = {}
+            for c in w:
+                try:
+                    histo_in_w[c] += 1
+                except KeyError:
+                    histo_in_w[c] = 1
 
-        for top_n in reversed(range(2, Wordle.WORD_LENGTTH + 1)):
-            regex = ""
-            for chars in itertools.combinations(sorted_unused_chars[:Wordle.WORD_LENGTTH], top_n):
-                for c in chars:
-                    regex += "(?=.*" + c + ".*)"
-                regex += "....."
-                recommended_words = self._search_regex(regex)
-                self.recommendations = recommended_words
+                if chars_dict[c]["color"] == "unused":
+                    scored_words[w] += 1
+                elif chars_dict[c]["color"] == "yellow":
+                    scored_words[w] += 2
+                elif chars_dict[c]["color"] == "green":
+                    scored_words[w] += 3
+                elif chars_dict[c]["color"] == "gray":
+                    scored_words[w] += 4
 
-                if len(recommended_words) > 0:
-                    return recommended_words
-        else:
-            self.recommendations = None
+            for v in histo_in_w.values():
+                if v > 1:
+                    scored_words[w] += 2 * (v - 1)
 
-    def print_recommendations(self):
+        sorted_scored_words_list = sorted(scored_words.items(), key=lambda x: x[1])
+
+        return sorted_scored_words_list
+
+    def print_recommendations(self, recommendations):
         print("\n[Words that contain many unused and frequently occurring characters]")
 
-        if not self.recommendations:
-            print("No words to recommend.", file=sys.stderr)
-            return
-
-        for r in self.recommendations:
+        for r in recommendations[:10]:
             print(r)
 
     def _make_histogram(self):
@@ -196,6 +202,23 @@ class Wordle:
 
         return set("abcdefghijklmnopqrstuvwxyz") - set(raw_chars)
 
+    def _get_chars_dict(self):
+        chars_dict = {}
+        for letter in "abcdefghijklmnopqrstuvwxyz":
+            chars_dict[letter] = {}
+            chars_dict[letter]["color"] = "unused"
+
+        for w in self.words:
+            for c in w.chars:
+                if c.color is None:
+                    chars_dict[c.letter]["color"] = "gray"
+                elif c.color == Wordle.SYMBOL_FOR_YELLOW:
+                    chars_dict[c.letter]["color"] = "yellow"
+                elif c.color == Wordle.SYMBOL_FOR_GREEN:
+                    chars_dict[c.letter]["color"] = "green"
+
+        return chars_dict
+
 
 if __name__ == "__main__":
     input_words = sys.argv[1:]
@@ -214,5 +237,5 @@ if __name__ == "__main__":
     else:
         wordle.print_candidates()
 
-    recommended = wordle.recommend()
-    wordle.print_recommendations()
+    recommended = wordle.recommend(candidates)
+    wordle.print_recommendations(recommended)
