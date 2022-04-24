@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import itertools
 import json
 import os
 import re
@@ -145,33 +144,20 @@ class Wordle:
 
     def recommend(self, candidates):
         """Find words that contain as many unused letters as possible."""
-        chars_dict = self._get_chars_dict()
+        chars_dict = self._init_chars_dict()
+        self._set_colors(chars_dict)
+        self._set_frequency(chars_dict)
+        self._set_score(chars_dict)
 
         scored_words = {}
 
         for w in self.word_list:
             scored_words[w] = 0
-            histo_in_w = {}
-            for c in w:
-                try:
-                    histo_in_w[c] += 1
-                except KeyError:
-                    histo_in_w[c] = 1
+            for i, c in enumerate(w):
+                if c not in w[:i]:  # No points if the same letter is already in the word.
+                    scored_words[w] += chars_dict[c]["score"]
 
-                if chars_dict[c]["color"] == "unused":
-                    scored_words[w] += 1
-                elif chars_dict[c]["color"] == "yellow":
-                    scored_words[w] += 2
-                elif chars_dict[c]["color"] == "green":
-                    scored_words[w] += 3
-                elif chars_dict[c]["color"] == "gray":
-                    scored_words[w] += 4
-
-            for v in histo_in_w.values():
-                if v > 1:
-                    scored_words[w] += 2 * (v - 1)
-
-        sorted_scored_words_list = sorted(scored_words.items(), key=lambda x: x[1])
+        sorted_scored_words_list = sorted(scored_words.items(), key=lambda x: x[1], reverse=True)
 
         return sorted_scored_words_list
 
@@ -181,32 +167,29 @@ class Wordle:
         for r in recommendations[:10]:
             print(r)
 
-    def _make_histogram(self):
-        histogram = {}
-        for raw_words in self.candidates:
-            for c in raw_words:
-                try:
-                    histogram[c] += 1
-                except KeyError:
-                    histogram[c] = 1
-
-        histogram = sorted(histogram.items(), key=lambda x: x[1], reverse=True)
-
-        return histogram
-
-    def _get_unused_raw_chars(self):
-        raw_chars = ""
-        for w in self.words:
-            for c in w.chars:
-                raw_chars += c.letter
-
-        return set("abcdefghijklmnopqrstuvwxyz") - set(raw_chars)
-
-    def _get_chars_dict(self):
+    def _init_chars_dict(self):
         chars_dict = {}
         for letter in "abcdefghijklmnopqrstuvwxyz":
             chars_dict[letter] = {}
-            chars_dict[letter]["color"] = "unused"
+
+        return chars_dict
+
+    def _set_colors(self, chars_dict):
+        """
+        Add each letter color to a character-keyed dictionary.
+
+        Examples
+        --------
+        ::
+
+            {'a': {'color': 'gray'},
+             'b': {'color': 'yellow},
+             ...,
+             'z': {'color': 'unused'}}
+
+        """
+        for c in chars_dict.keys():
+            chars_dict[c]["color"] = "unused"
 
         for w in self.words:
             for c in w.chars:
@@ -218,6 +201,51 @@ class Wordle:
                     chars_dict[c.letter]["color"] = "green"
 
         return chars_dict
+
+    def _set_frequency(self, chars_dict):
+        """
+        Add each letter frequency in the candidate words to a character-keyed dictionary.
+
+        Examples
+        --------
+        ::
+
+            {'a': {'color': 'gray', 'frequency': 1},
+             'b': {'color': 'yellow', 'frequency': 0},
+             ...,
+             'z': {'color': 'unused', 'frequency': 2}}
+
+        """
+        for c in chars_dict.keys():
+            chars_dict[c]["frequency"] = 0
+
+        for raw_words in self.candidates:
+            for c in raw_words:
+                chars_dict[c]["frequency"] += 1
+
+    def _set_score(self, chars_dict):
+        """
+        Add each letter score calculated from color and frequency to a character-keyed dictionary.
+
+        Examples
+        --------
+        ::
+
+            {'a': {'color': 'gray', 'frequency': 1, 'score': 0},
+             'b': {'color': 'yellow', 'frequency': 0, 'score': 2},
+             ...,
+             'z': {'color': 'unused', 'frequency': 2, 'score': 5}}
+
+        """
+        for c in chars_dict.keys():
+            if chars_dict[c]["color"] == "gray":
+                chars_dict[c]["score"] = 0
+            elif chars_dict[c]["color"] == "green":
+                chars_dict[c]["score"] = 1
+            elif chars_dict[c]["color"] == "yellow":
+                chars_dict[c]["score"] = 2
+            elif chars_dict[c]["color"] == "unused":
+                chars_dict[c]["score"] = chars_dict[c]["frequency"] + 3
 
 
 if __name__ == "__main__":
