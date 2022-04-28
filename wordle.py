@@ -238,7 +238,9 @@ class Wordle:
 
         """
         for c in chars_dict.keys():
-            if chars_dict[c]["color"] == "gray":
+            if chars_dict[c]["frequency"] == 0:
+                chars_dict[c]["score"] = 0
+            elif chars_dict[c]["color"] == "gray":
                 chars_dict[c]["score"] = 0
             elif chars_dict[c]["color"] == "green":
                 chars_dict[c]["score"] = 1
